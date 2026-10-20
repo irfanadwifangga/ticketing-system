@@ -78,3 +78,16 @@ export function StatCard({ label, value, accent }) {
     createElement('p', { className: `mt-2 text-3xl font-bold ${accent}` }, value),
   )
 }
+
+export const PAGE_SIZE_OPTIONS = [5, 10, 20, 50, 100]
+
+export const ORDERING_OPTIONS = [
+  { value: '-created_at', label: 'Newest first' },
+  { value: 'created_at', label: 'Oldest first' },
+  { value: '-priority', label: 'Priority (high to low)' },
+  { value: 'priority', label: 'Priority (low to high)' },
+  { value: 'title', label: 'Title (A-Z)' },
+  { value: '-title', label: 'Title (Z-A)' },
+  { value: '-updated_at', label: 'Recently updated' },
+  { value: 'updated_at', label: 'Least recently updated' },
+]
