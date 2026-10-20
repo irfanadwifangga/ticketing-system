@@ -1,0 +1,13 @@
+{
+  "targets": {
+    "python": {
+      "packageName": "acme_api",
+      "projectName": "acme-api",
+      "destinations": {
+        "production": {
+          "repo": "acme/acme-python"
+        }
+      }
+    }
+  }
+}
