@@ -7,5 +7,6 @@ router = DefaultRouter()
 router.register("tickets", TicketViewSet, basename="ticket")
 
 urlpatterns = [
+    path("tickets/stats/", TicketViewSet.as_view({"get": "stats"}), name="ticket-stats"),
     path("", include(router.urls)),
 ]
