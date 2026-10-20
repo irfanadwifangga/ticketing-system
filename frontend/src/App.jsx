@@ -55,9 +55,11 @@ function StatCard({ label, value, accent }) {
 
 function Field({ label, children }) {
   return (
-    <div>
-      <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">{label}</label>
-      {children}
+    <div className="space-y-1.5">
+      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+        <span className="mb-1.5 block">{label}</span>
+        {children}
+      </label>
     </div>
   )
 }
@@ -82,13 +84,26 @@ function App() {
   const [filterPriority, setFilterPriority] = useState('')
   const [filterCategory, setFilterCategory] = useState('')
 
-  const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark')
+  const [dark, setDark] = useState(() => {
+    try {
+      const stored = localStorage.getItem('theme')
+      if (stored) return stored === 'dark'
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+    } catch {
+      return false
+    }
+  })
 
-    useEffect(() => {
-      if (dark) document.documentElement.classList.add('dark')
-      else document.documentElement.classList.remove('dark')
+  useEffect(() => {
+    const root = document.documentElement
+    if (dark) root.classList.add('dark')
+    else root.classList.remove('dark')
+    try {
       localStorage.setItem('theme', dark ? 'dark' : 'light')
-    }, [dark])
+    } catch {
+      // ignore persistence errors in private mode
+    }
+  }, [dark])
 
   async function loadTickets() {
     setLoading(true)
@@ -114,7 +129,7 @@ function App() {
         if (!healthResponse.ok) throw new Error('Health check failed: ' + healthResponse.status)
         const healthData = await healthResponse.json()
         if (!cancelled) setHealth(healthData?.status ?? 'ok')
-      } catch (err) {
+      } catch {
         if (!cancelled) setHealth('unavailable')
       }
       if (!cancelled) await loadTickets()
@@ -272,14 +287,17 @@ function App() {
             <button
               type="button"
               onClick={() => setDark((d) => !d)}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              aria-pressed={dark}
+              aria-label="Toggle color theme"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus-visible:ring-4 focus-visible:ring-indigo-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               {dark ? 'Light' : 'Dark'}
             </button>
             <button
               type="button"
               onClick={loadTickets}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              aria-label="Refresh tickets"
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus-visible:ring-4 focus-visible:ring-indigo-200 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               Refresh
             </button>
@@ -426,18 +444,19 @@ function App() {
 
           <main className="lg:col-span-8">
             {loading ? (
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-4" role="status" aria-live="polite" aria-label="Loading tickets">
                 {[0, 1, 2, 3].map((i) => (
                   <div key={i} className="h-36 animate-pulse rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900" />
                 ))}
+                <span className="sr-only">Loading tickets…</span>
               </div>
             ) : error ? (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+              <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
                 {error}
-                <button onClick={loadTickets} className="ml-3 font-semibold underline">Retry</button>
+                <button onClick={loadTickets} className="ml-3 font-semibold underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400">Retry</button>
               </div>
             ) : filteredTickets.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-900">
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-900" role="status">
                 <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
                   {tickets.length === 0 ? 'No tickets yet' : 'No tickets match your filters'}
                 </p>
