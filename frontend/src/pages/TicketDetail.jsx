@@ -64,7 +64,25 @@ function TicketDetail() {
   }
 
   useEffect(() => {
-    loadTicket()
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    ;(async () => {
+      try {
+        const response = await fetch('/api/tickets/' + id + '/')
+        if (cancelled) return
+        if (!response.ok) throw new Error('Ticket request failed: ' + response.status)
+        const data = await response.json()
+        if (!cancelled) setTicket(data)
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Failed to load ticket')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [id])
 
   function startEdit() {
