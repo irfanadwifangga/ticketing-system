@@ -67,7 +67,7 @@ Existing filters (current behavior):
 - `requester` — case-insensitive contains match against `requester_name` or `requester_email`
 
 Target filters/search/order/pagination:
-- `search` or `q` — case-insensitive contains match across `title`, `description`, `requester_name`, `requester_email`, `assignee_name`.
+- `search` — case-insensitive contains match across `title`, `description`, `requester_name`, `requester_email`, `assignee_name`.
 - `ordering` — server side ordering with allowlist.
 - `page` — page number, starts at 1.
 - `page_size` — number of items per page, default 10, maximum 100.
@@ -75,11 +75,20 @@ Target filters/search/order/pagination:
 All filters/search/order/page can be combined with AND semantics.
 
 ### Allowlist and priority mapping
-- Allowed `ordering`: `created_at`, `-created_at`, `priority`, `-priority`, `title`, `-title`, `status`, `-status`, `updated_at`, `-updated_at`.
+- Allowed `ordering`: `created_at`, `-created_at`, `priority`, `-priority`, `title`, `-title`, `updated_at`, `-updated_at`.
 - `priority` is stored as string, but server must map it logically: low=1, medium=2, high=3, urgent=4.
-- Invalid ordering value returns `400`.
-- Invalid query syntax/unsupported value returns `400`.
-- `invalid page` behavior: if `page` <= 0 returns `400`; if page beyond available range returns `404`.
+- When a user-provided ordering is valid, apply that order first, then tie-break with `-id` for stable pagination.
+- Invalid ordering value returns `400 Bad Request`.
+- Invalid `status`, `priority`, or `category` returns `400` with the error message under the corresponding field key.
+
+### Pagination behavior
+- `page` starts at 1.
+- `page` invalid (<=0, non-integer, out of range) returns `404`:
+  ```json
+  { "detail": "Invalid page." }
+  ```
+- `page_size` default is 10; invalid (0, negative, non-integer) uses default 10; values above 100 are capped to 100.
+- `next` / `previous` absolute URLs are informational only; frontend builds its own URLs from `page`.
 
 ### Endpoints (target)
 
@@ -183,7 +192,7 @@ Field errors `400 Bad Request`:
 ```json
 {
   "title": ["This field is required."],
-  "priority": ["\"urgent\" is not a valid choice."]
+  "priority": ["\"critical\" is not a valid choice."]
 }
 ```
 
