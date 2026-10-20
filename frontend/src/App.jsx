@@ -14,6 +14,17 @@ const EMPTY_FORM = {
 const STATUS_OPTIONS = ['open', 'in_progress', 'waiting_customer', 'resolved', 'closed']
 const PRIORITY_OPTIONS = ['low', 'medium', 'high', 'urgent']
 const CATEGORY_OPTIONS = ['hardware', 'software', 'network', 'access', 'account', 'printing', 'other']
+const PAGE_SIZE_OPTIONS = [5, 10, 20, 50, 100]
+const ORDERING_OPTIONS = [
+  { value: '-created_at', label: 'Newest first' },
+  { value: 'created_at', label: 'Oldest first' },
+  { value: '-priority', label: 'Priority (high to low)' },
+  { value: 'priority', label: 'Priority (low to high)' },
+  { value: 'title', label: 'Title (A-Z)' },
+  { value: '-title', label: 'Title (Z-A)' },
+  { value: '-updated_at', label: 'Recently updated' },
+  { value: 'updated_at', label: 'Least recently updated' },
+]
 
 const STATUS_STYLES = {
   open: 'bg-blue-100 text-blue-700 ring-1 ring-blue-200 dark:bg-blue-900/40 dark:text-blue-300',
@@ -83,6 +94,11 @@ function App() {
   const [filterStatus, setFilterStatus] = useState('')
   const [filterPriority, setFilterPriority] = useState('')
   const [filterCategory, setFilterCategory] = useState('')
+  const [ordering, setOrdering] = useState('-created_at')
+  const [pageSize, setPageSize] = useState(10)
+  const [page, setPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const [statsData, setStatsData] = useState({ total: 0, by_status: {} })
 
   const [dark, setDark] = useState(() => {
     try {
@@ -105,19 +121,59 @@ function App() {
     }
   }, [dark])
 
+  function parseErrorPayload(payload, fallback) {
+    if (payload && typeof payload === 'object') {
+      if (payload.detail) return payload.detail
+      const parts = Object.entries(payload).map(([key, value]) => {
+        const message = Array.isArray(value) ? value.join(', ') : String(value)
+        return `${key}: ${message}`
+      })
+      if (parts.length) return parts.join('; ')
+    }
+    return fallback
+  }
+
   async function loadTickets() {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch('/api/tickets/')
-      if (!response.ok) throw new Error('Tickets request failed: ' + response.status)
+      const params = new URLSearchParams()
+      if (query.trim()) params.set('search', query.trim())
+      if (filterStatus) params.set('status', filterStatus)
+      if (filterPriority) params.set('priority', filterPriority)
+      if (filterCategory) params.set('category', filterCategory)
+      if (ordering) params.set('ordering', ordering)
+      params.set('page', String(page))
+      params.set('page_size', String(pageSize))
+      const response = await fetch('/api/tickets/?' + params.toString())
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(parseErrorPayload(payload, 'Tickets request failed: ' + response.status))
+      }
       const data = await response.json()
-      const list = Array.isArray(data) ? data : data?.results ?? []
-      setTickets(list)
+      if (!data || !Array.isArray(data.results)) {
+        throw new Error('Unexpected tickets response shape')
+      }
+      setTickets(data.results)
+      setTotalCount(typeof data.count === 'number' ? data.count : data.results.length)
     } catch (err) {
       setError(err.message || 'Failed to load tickets')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function loadStats() {
+    try {
+      const response = await fetch('/api/tickets/stats/')
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(parseErrorPayload(payload, 'Stats request failed: ' + response.status))
+      }
+      const data = await response.json()
+      setStatsData(data || { total: 0, by_status: {} })
+    } catch (err) {
+      setActionError(err.message || 'Failed to load stats')
     }
   }
 
@@ -132,13 +188,18 @@ function App() {
       } catch {
         if (!cancelled) setHealth('unavailable')
       }
-      if (!cancelled) await loadTickets()
+      if (!cancelled) await loadStats()
     }
     bootstrap()
     return () => {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    loadTickets()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, filterStatus, filterPriority, filterCategory, ordering, pageSize, page])
 
   async function handleCreate(event) {
     event.preventDefault()
@@ -152,11 +213,13 @@ function App() {
       })
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
-        throw new Error((payload && payload.detail) || ('Create failed: ' + response.status))
+        throw new Error(parseErrorPayload(payload, 'Create failed: ' + response.status))
       }
-      const created = await response.json()
-      setTickets((previous) => [created, ...previous])
+      await response.json().catch(() => null)
       setForm(EMPTY_FORM)
+      setPage(1)
+      await loadTickets()
+      await loadStats()
     } catch (err) {
       setActionError(err.message || 'Failed to create ticket')
     } finally {
@@ -196,13 +259,12 @@ function App() {
       })
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
-        throw new Error((payload && payload.detail) || ('Update failed: ' + response.status))
+        throw new Error(parseErrorPayload(payload, 'Update failed: ' + response.status))
       }
-      const updated = await response.json()
-      setTickets((previous) =>
-        previous.map((ticket) => (ticket.id === id ? updated : ticket))
-      )
+      await response.json().catch(() => null)
       cancelEdit()
+      await loadTickets()
+      await loadStats()
     } catch (err) {
       setActionError(err.message || 'Failed to update ticket')
     } finally {
@@ -217,10 +279,12 @@ function App() {
     try {
       const response = await fetch('/api/tickets/' + id + '/', { method: 'DELETE' })
       if (!response.ok && response.status !== 204) {
-        throw new Error('Delete failed: ' + response.status)
+        const payload = await response.json().catch(() => null)
+        throw new Error(parseErrorPayload(payload, 'Delete failed: ' + response.status))
       }
-      setTickets((previous) => previous.filter((ticket) => ticket.id !== id))
       if (editingId === id) cancelEdit()
+      await loadTickets()
+      await loadStats()
     } catch (err) {
       setActionError(err.message || 'Failed to delete ticket')
     } finally {
@@ -228,36 +292,18 @@ function App() {
     }
   }
 
-  const filteredTickets = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return tickets.filter((t) => {
-      if (filterStatus && t.status !== filterStatus) return false
-      if (filterPriority && t.priority !== filterPriority) return false
-      if (filterCategory && (t.category ?? 'general') !== filterCategory) return false
-      if (q) {
-        const haystack = [t.title, t.description, t.requester_name, t.requester_email, t.assignee_name, t.category]
-          .filter(Boolean)
-          .join(' ')
-          .toLowerCase()
-        if (!haystack.includes(q)) return false
-      }
-      return true
-    })
-  }, [tickets, query, filterStatus, filterPriority, filterCategory])
-
   const stats = useMemo(() => {
+    const by = (statsData && statsData.by_status) || {}
     return {
-      open: tickets.filter((t) => t.status === 'open').length,
-      inProgress: tickets.filter((t) => t.status === 'in_progress' || t.status === 'waiting_customer').length,
-      resolved: tickets.filter((t) => t.status === 'resolved' || t.status === 'closed').length,
+      open: by.open ?? 0,
+      inProgress: (by.in_progress ?? 0) + (by.waiting_customer ?? 0),
+      resolved: (by.resolved ?? 0) + (by.closed ?? 0),
     }
-  }, [tickets])
+  }, [statsData])
 
-  const availableCategories = useMemo(() => {
-    const set = new Set(CATEGORY_OPTIONS)
-    tickets.forEach((t) => t.category && set.add(t.category))
-    return Array.from(set)
-  }, [tickets])
+  const totalPages = Math.max(1, Math.ceil((totalCount || 0) / (pageSize || 1)))
+
+  const availableCategories = CATEGORY_OPTIONS
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/40 text-slate-900 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/40 dark:text-slate-100">
@@ -416,26 +462,36 @@ function App() {
                 <input
                   type="text"
                   value={query}
-                  onChange={(e) => setQuery(e.target.value)}
+                  onChange={(e) => { setQuery(e.target.value); setPage(1) }}
                   className={inputClass}
                   placeholder="Search title, requester, assignee..."
                 />
-                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className={selectClass}>
+                <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(1) }} className={selectClass}>
                   <option value="">All statuses</option>
                   {STATUS_OPTIONS.map((s) => (
                     <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
                   ))}
                 </select>
-                <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} className={selectClass}>
+                <select value={filterPriority} onChange={(e) => { setFilterPriority(e.target.value); setPage(1) }} className={selectClass}>
                   <option value="">All priorities</option>
                   {PRIORITY_OPTIONS.map((p) => (
                     <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
                   ))}
                 </select>
-                <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className={selectClass}>
+                <select value={filterCategory} onChange={(e) => { setFilterCategory(e.target.value); setPage(1) }} className={selectClass}>
                   <option value="">All categories</option>
                   {availableCategories.map((c) => (
                     <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+                  ))}
+                </select>
+                <select value={ordering} onChange={(e) => { setOrdering(e.target.value); setPage(1) }} className={selectClass}>
+                  {ORDERING_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1) }} className={selectClass}>
+                  {PAGE_SIZE_OPTIONS.map((n) => (
+                    <option key={n} value={n}>{n} per page</option>
                   ))}
                 </select>
               </div>
@@ -455,18 +511,19 @@ function App() {
                 {error}
                 <button onClick={loadTickets} className="ml-3 font-semibold underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400">Retry</button>
               </div>
-            ) : filteredTickets.length === 0 ? (
+            ) : tickets.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-900" role="status">
                 <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
-                  {tickets.length === 0 ? 'No tickets yet' : 'No tickets match your filters'}
+                  No tickets match your filters
                 </p>
                 <p className="mt-1 text-xs text-slate-400">
-                  {tickets.length === 0 ? 'Create one to get started.' : 'Try adjusting filters or search.'}
+                  Try adjusting filters or search.
                 </p>
               </div>
             ) : (
+              <>
               <ul className="flex flex-col gap-4">
-                {filteredTickets.map((ticket) => {
+                {tickets.map((ticket) => {
                   const isEditing = editingId === ticket.id
                   return (
                     <li
@@ -619,6 +676,30 @@ function App() {
                   )
                 })}
               </ul>
+              <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm text-slate-600 dark:text-slate-300">
+                  Page {page} of {totalPages} · {totalCount} total
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={page <= 1 || loading}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    disabled={page >= totalPages || loading}
+                    onClick={() => setPage((p) => p + 1)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </>
             )}
           </main>
         </div>
