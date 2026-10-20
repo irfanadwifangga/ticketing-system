@@ -9,7 +9,7 @@ class Ticket(models.Model):
         ACCESS = "access", "Access"
         ACCOUNT = "account", "Account"
         PRINTING = "printing", "Printing"
-        OTHER = "other", "Other"
+        OTHER = "other", "Other"    
 
     class Priority(models.TextChoices):
         LOW = "low", "Low"
