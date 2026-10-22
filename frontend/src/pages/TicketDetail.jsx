@@ -2,16 +2,11 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   EMPTY_FORM,
-  STATUS_OPTIONS,
-  PRIORITY_OPTIONS,
-  CATEGORY_OPTIONS,
   statusBadgeClass,
   priorityBadgeClass,
-  inputClass,
-  selectClass,
-  Field,
   ticketToForm,
 } from '../constants'
+import TicketForm from './TicketForm'
 
 function TicketDetail() {
   const { id } = useParams()
@@ -21,6 +16,7 @@ function TicketDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [actionError, setActionError] = useState(null)
+  const [reload, setReload] = useState(0)
 
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState(EMPTY_FORM)
@@ -48,21 +44,6 @@ function TicketDetail() {
     }
   }, [dark])
 
-  async function loadTicket() {
-    setLoading(true)
-    setError(null)
-    try {
-      const response = await fetch('/api/tickets/' + id + '/')
-      if (!response.ok) throw new Error('Ticket request failed: ' + response.status)
-      const data = await response.json()
-      setTicket(data)
-    } catch (err) {
-      setError(err.message || 'Failed to load ticket')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
     let cancelled = false
     setLoading(true)
@@ -83,7 +64,7 @@ function TicketDetail() {
     return () => {
       cancelled = true
     }
-  }, [id])
+  }, [id, reload])
 
   function startEdit() {
     if (!ticket) return
@@ -177,7 +158,7 @@ function TicketDetail() {
         ) : error ? (
           <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
             {error}
-            <button onClick={loadTicket} className="ml-3 font-semibold underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400">Retry</button>
+            <button onClick={() => setReload((r) => r + 1)} className="ml-3 font-semibold underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400">Retry</button>
           </div>
         ) : !ticket ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-900" role="status">
@@ -188,99 +169,14 @@ function TicketDetail() {
             <div className="border-b border-slate-100 bg-slate-50/70 px-6 py-4 dark:border-slate-800 dark:bg-slate-800/50">
               <h2 className="text-lg font-semibold">Edit ticket</h2>
             </div>
-            <form onSubmit={handleUpdate} className="flex flex-col gap-4 p-6">
-              <Field label="Title">
-                <input
-                  type="text"
-                  required
-                  value={editForm.title}
-                  onChange={(e) => setEditForm((p) => ({ ...p, title: e.target.value }))}
-                  className={inputClass}
-                  placeholder="Short summary"
-                />
-              </Field>
-              <Field label="Description">
-                <textarea
-                  required
-                  rows={4}
-                  value={editForm.description}
-                  onChange={(e) => setEditForm((p) => ({ ...p, description: e.target.value }))}
-                  className={inputClass}
-                  placeholder="Describe the issue"
-                />
-              </Field>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label="Category">
-                  <select
-                    value={editForm.category}
-                    onChange={(e) => setEditForm((p) => ({ ...p, category: e.target.value }))}
-                    className={selectClass}
-                  >
-                    {CATEGORY_OPTIONS.map((c) => (
-                      <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Priority">
-                  <select
-                    value={editForm.priority}
-                    onChange={(e) => setEditForm((p) => ({ ...p, priority: e.target.value }))}
-                    className={selectClass}
-                  >
-                    {PRIORITY_OPTIONS.map((p) => (
-                      <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
-                    ))}
-                  </select>
-                </Field>
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <Field label="Status">
-                  <select
-                    value={editForm.status}
-                    onChange={(e) => setEditForm((p) => ({ ...p, status: e.target.value }))}
-                    className={selectClass}
-                  >
-                    {STATUS_OPTIONS.map((s) => (
-                      <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Requester">
-                  <input
-                    type="text"
-                    value={editForm.requester_name}
-                    onChange={(e) => setEditForm((p) => ({ ...p, requester_name: e.target.value }))}
-                    className={inputClass}
-                    placeholder="Requester name"
-                  />
-                </Field>
-                <Field label="Assignee">
-                  <input
-                    type="text"
-                    value={editForm.assignee_name}
-                    onChange={(e) => setEditForm((p) => ({ ...p, assignee_name: e.target.value }))}
-                    className={inputClass}
-                    placeholder="Assignee name"
-                  />
-                </Field>
-              </div>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={cancelEdit}
-                  className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {saving ? 'Saving...' : 'Save'}
-                </button>
-              </div>
-            </form>
+            <TicketForm
+              value={editForm}
+              onChange={setEditForm}
+              onSubmit={handleUpdate}
+              submitLabel={saving ? 'Saving...' : 'Save'}
+              disabled={saving}
+              onCancel={cancelEdit}
+            />
           </section>
         ) : (
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">

@@ -11,10 +11,10 @@ import {
   priorityBadgeClass,
   inputClass,
   selectClass,
-  Field,
   StatCard,
   ticketToForm,
 } from '../constants'
+import TicketForm from './TicketForm'
 
 function parseErrorPayload(payload, fallback) {
   if (payload && typeof payload === 'object') {
@@ -43,6 +43,7 @@ function Dashboard() {
   const [savingId, setSavingId] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
 
+  // query = raw input value; search = debounced value actually sent to the API
   const [query, setQuery] = useState('')
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
@@ -308,90 +309,13 @@ function Dashboard() {
                 <h2 className="text-lg font-semibold">Create ticket</h2>
                 <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Add a new support ticket to the queue.</p>
               </div>
-              <form onSubmit={handleCreate} className="flex flex-col gap-4 p-6">
-                <Field label="Title">
-                  <input
-                    type="text"
-                    required
-                    value={form.title}
-                    onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-                    className={inputClass}
-                    placeholder="Short summary"
-                  />
-                </Field>
-                <Field label="Description">
-                  <textarea
-                    required
-                    rows={4}
-                    value={form.description}
-                    onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-                    className={inputClass}
-                    placeholder="Describe the issue"
-                  />
-                </Field>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field label="Category">
-                    <select
-                      value={form.category}
-                      onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
-                      className={selectClass}
-                    >
-                      {CATEGORY_OPTIONS.map((c) => (
-                        <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="Priority">
-                    <select
-                      value={form.priority}
-                      onChange={(e) => setForm((p) => ({ ...p, priority: e.target.value }))}
-                      className={selectClass}
-                    >
-                      {PRIORITY_OPTIONS.map((p) => (
-                        <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
-                      ))}
-                    </select>
-                  </Field>
-                </div>
-                <Field label="Status">
-                  <select
-                    value={form.status}
-                    onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}
-                    className={selectClass}
-                  >
-                    {STATUS_OPTIONS.map((s) => (
-                      <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-                    ))}
-                  </select>
-                </Field>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field label="Requester">
-                    <input
-                      type="text"
-                      value={form.requester_name}
-                      onChange={(e) => setForm((p) => ({ ...p, requester_name: e.target.value }))}
-                      className={inputClass}
-                      placeholder="Requester name"
-                    />
-                  </Field>
-                  <Field label="Assignee">
-                    <input
-                      type="text"
-                      value={form.assignee_name}
-                      onChange={(e) => setForm((p) => ({ ...p, assignee_name: e.target.value }))}
-                      className={inputClass}
-                      placeholder="Assignee name"
-                    />
-                  </Field>
-                </div>
-                <button
-                  type="submit"
-                  disabled={creating}
-                  className="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {creating ? 'Creating...' : 'Create ticket'}
-                </button>
-              </form>
+              <TicketForm
+                value={form}
+                onChange={setForm}
+                onSubmit={handleCreate}
+                submitLabel={creating ? 'Creating...' : 'Create ticket'}
+                disabled={creating}
+              />
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -468,85 +392,15 @@ function Dashboard() {
                       className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
                     >
                       {isEditing ? (
-                        <form onSubmit={(event) => handleUpdate(event, ticket.id)} className="flex flex-col gap-4">
-                          <input
-                            type="text"
-                            required
-                            value={editForm.title}
-                            onChange={(e) => setEditForm((p) => ({ ...p, title: e.target.value }))}
-                            className={inputClass}
-                            placeholder="Title"
-                          />
-                          <textarea
-                            required
-                            rows={3}
-                            value={editForm.description}
-                            onChange={(e) => setEditForm((p) => ({ ...p, description: e.target.value }))}
-                            className={inputClass}
-                            placeholder="Description"
-                          />
-                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <select
-                              value={editForm.category}
-                              onChange={(e) => setEditForm((p) => ({ ...p, category: e.target.value }))}
-                              className={selectClass}
-                            >
-                              {CATEGORY_OPTIONS.map((c) => (
-                                <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
-                              ))}
-                            </select>
-                            <select
-                              value={editForm.priority}
-                              onChange={(e) => setEditForm((p) => ({ ...p, priority: e.target.value }))}
-                              className={selectClass}
-                            >
-                              {PRIORITY_OPTIONS.map((p) => (
-                                <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                            <select
-                              value={editForm.status}
-                              onChange={(e) => setEditForm((p) => ({ ...p, status: e.target.value }))}
-                              className={selectClass}
-                            >
-                              {STATUS_OPTIONS.map((s) => (
-                                <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-                              ))}
-                            </select>
-                            <input
-                              type="text"
-                              value={editForm.requester_name}
-                              onChange={(e) => setEditForm((p) => ({ ...p, requester_name: e.target.value }))}
-                              className={inputClass}
-                              placeholder="Requester"
-                            />
-                            <input
-                              type="text"
-                              value={editForm.assignee_name}
-                              onChange={(e) => setEditForm((p) => ({ ...p, assignee_name: e.target.value }))}
-                              className={inputClass}
-                              placeholder="Assignee"
-                            />
-                          </div>
-                          <div className="flex justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={cancelEdit}
-                              className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="submit"
-                              disabled={savingId === ticket.id}
-                              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {savingId === ticket.id ? 'Saving...' : 'Save'}
-                            </button>
-                          </div>
-                        </form>
+                        <TicketForm
+                          value={editForm}
+                          onChange={setEditForm}
+                          onSubmit={(event) => handleUpdate(event, ticket.id)}
+                          submitLabel={savingId === ticket.id ? 'Saving...' : 'Save'}
+                          disabled={savingId === ticket.id}
+                          onCancel={cancelEdit}
+                          className="flex flex-col gap-4"
+                        />
                       ) : (
                         <>
                           <div className="flex items-start justify-between gap-3">
