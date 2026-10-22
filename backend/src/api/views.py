@@ -8,7 +8,6 @@ from rest_framework.viewsets import ModelViewSet
 from .models import Ticket
 from .serializers import TicketSerializer
 
-
 PRIORITY_ORDER = {
     "low": 1,
     "medium": 2,
@@ -97,7 +96,10 @@ class TicketViewSet(ModelViewSet):
 
         queryset = queryset.annotate(
             _priority_order=Case(
-                *[When(priority=key, then=Value(value)) for key, value in PRIORITY_ORDER.items()],
+                *[
+                    When(priority=key, then=Value(value))
+                    for key, value in PRIORITY_ORDER.items()
+                ],
                 default=Value(0),
                 output_field=IntegerField(),
             )
