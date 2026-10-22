@@ -1,4 +1,4 @@
-from django.db.models import Case, IntegerField, Q, Value, When
+from django.db.models import Case, Count, IntegerField, Q, Value, When
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.request import Request
@@ -21,22 +21,6 @@ class TicketPagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = "page_size"
     max_page_size = 100
-
-    def get_page_size(self, request):
-        if not self.page_size_query_param:
-            return self.page_size
-        raw = request.query_params.get(self.page_size_query_param)
-        if raw is None:
-            return self.page_size
-        try:
-            value = int(raw)
-        except (TypeError, ValueError):
-            return self.page_size
-        if value <= 0:
-            return self.page_size
-        if self.max_page_size is not None:
-            return min(value, self.max_page_size)
-        return value
 
 
 STATUSES = {choice[0] for choice in Ticket.Status.choices}
@@ -134,8 +118,6 @@ class TicketViewSet(ModelViewSet):
         return queryset
 
     def stats(self, request):
-        from django.db.models import Count
-
         queryset = Ticket.objects.all()
         total = queryset.count()
         by_status = {choice[0]: 0 for choice in Ticket.Status.choices}
